@@ -1,0 +1,39 @@
+{
+  "_comment": [
+    "TEMPLATE STUB — DO NOT SHIP THIS FILE.",
+    "",
+    "Activate Firebase (push + App Check):",
+    "  1. Firebase Console → create a project for Turkey Tunnel.",
+    "  2. Register an Android app with package_name tr.turkeytunnel.lo",
+    "     — it MUST match android/app/build.gradle.kts applicationId.",
+    "  3. Download google-services.json and drop it next to this file.",
+    "  4. Confirm google-services.json is gitignored.",
+    "  5. The Google Services Gradle plugin is auto-applied on next build.",
+    "",
+    "Until the real file is present, Firebase.initializeApp() throws, the",
+    "off-ramp gate stays disarmed, and the native game launches normally."
+  ],
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "REPLACE_ME",
+    "storage_bucket": "REPLACE_ME.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "android_client_info": {
+          "package_name": "tr.turkeytunnel.lo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        { "current_key": "REPLACE_ME" }
+      ],
+      "services": {
+        "appinvite_service": { "other_platform_oauth_client": [] }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

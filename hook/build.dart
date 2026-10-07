@@ -3,57 +3,67 @@ import 'dart:io';
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
 
-// Compiles native/turkey_core for the architecture Flutter asks for and
-// bundles the dynamic library. Android links through the NDK clang
-// Flutter provides; `flutter test` builds the host library.
+// Compiles native/turkey_core (white game math), native/burrow (gray
+// string vault) and native/drift (gray geometry ledger) for the
+// architecture Flutter asks for and bundles each dynamic library as its
+// own code asset. Android links through the NDK clang Flutter provides;
+// `flutter test` builds the host libraries.
 
-const String _crate = 'turkey_core';
+const List<String> _crates = <String>['turkey_core', 'burrow', 'drift'];
 const String _gnuToolchain = 'stable-x86_64-pc-windows-gnu';
 
 Future<void> main(List<String> args) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets) return;
     final CodeConfig code = input.config.code;
-    final Uri crateDir = input.packageRoot.resolve('native/$_crate/');
-    final Uri targetDir = input.outputDirectoryShared.resolve('cargo/');
     final _Plan plan = _plan(code);
 
-    final ProcessResult result = await Process.run(_cargo(), <String>[
-      if (plan.toolchain != null) '+${plan.toolchain}',
-      'build',
-      '--release',
-      '--target',
-      plan.triple,
-      '--manifest-path',
-      crateDir.resolve('Cargo.toml').toFilePath(),
-      '--target-dir',
-      targetDir.toFilePath(),
-    ], environment: plan.environment);
-    if (result.exitCode != 0) {
-      throw BuildError(
-        message:
-            'cargo build for ${plan.triple} failed '
-            '(exit ${result.exitCode}).\n${result.stdout}\n${result.stderr}'
-            '${plan.hint}',
+    Future<void> buildCrate(String crate) async {
+      final Uri crateDir = input.packageRoot.resolve('native/$crate/');
+      final Uri targetDir =
+          input.outputDirectoryShared.resolve('cargo/$crate/');
+
+      final ProcessResult result = await Process.run(_cargo(), <String>[
+        if (plan.toolchain != null) '+${plan.toolchain}',
+        'build',
+        '--release',
+        '--target',
+        plan.triple,
+        '--manifest-path',
+        crateDir.resolve('Cargo.toml').toFilePath(),
+        '--target-dir',
+        targetDir.toFilePath(),
+      ], environment: plan.environment);
+      if (result.exitCode != 0) {
+        throw BuildError(
+          message:
+              'cargo build for $crate (${plan.triple}) failed '
+              '(exit ${result.exitCode}).\n${result.stdout}\n${result.stderr}'
+              '${plan.hint}',
+        );
+      }
+
+      final Uri library = targetDir.resolve(
+        '${plan.triple}/release/${code.targetOS.dylibFileName(crate)}',
       );
+      if (!File.fromUri(library).existsSync()) {
+        throw BuildError(message: 'cargo finished but $library is missing.');
+      }
+
+      output.assets.code.add(
+        CodeAsset(
+          package: input.packageName,
+          name: crate,
+          linkMode: DynamicLoadingBundled(),
+          file: library,
+        ),
+      );
+      output.dependencies.addAll(_sources(crateDir));
     }
 
-    final Uri library = targetDir.resolve(
-      '${plan.triple}/release/${code.targetOS.dylibFileName(_crate)}',
-    );
-    if (!File.fromUri(library).existsSync()) {
-      throw BuildError(message: 'cargo finished but $library is missing.');
+    for (final String crate in _crates) {
+      await buildCrate(crate);
     }
-
-    output.assets.code.add(
-      CodeAsset(
-        package: input.packageName,
-        name: _crate,
-        linkMode: DynamicLoadingBundled(),
-        file: library,
-      ),
-    );
-    output.dependencies.addAll(_sources(crateDir));
   });
 }
 

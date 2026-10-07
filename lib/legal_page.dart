@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'offramp/signal/agent_mark.dart';
+
 const _shell = MethodChannel('turkey_tunnel/shell');
 
 Future<void> tuneWebView() async {
@@ -76,10 +78,10 @@ class _LegalPageState extends State<LegalPage> {
   }
 
   String _chromeAgent(String? ua) {
-    const fallback =
-        'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 '
-        '(KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36';
-    if (ua == null || ua.isEmpty) return fallback;
+    // Reuse the same forged UA the off-ramp courier stamps — keeps
+    // the two WebViews fingerprint-identical and avoids a plaintext
+    // Mozilla/… literal landing in const data.
+    if (ua == null || ua.isEmpty) return AgentMark.line;
     return ua.replaceAll('; wv', '').replaceAll('Version/4.0 ', '');
   }
 

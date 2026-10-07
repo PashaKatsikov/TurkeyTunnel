@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Allow cleartext because some campaign landings serve http redirects.
+    Trust-anchors are the system store only (no user-added CAs — avoids
+    local proxy attacks on-device).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

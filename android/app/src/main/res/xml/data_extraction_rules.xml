@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Keep gray-flow decision + attribution state local to this install:
+    cloud-backup and device-transfer must NOT ferry sharedpref / files
+    across installs — a restored decision would corrupt attribution and
+    make the game-vs-WebView lane cling to the wrong device.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+    </device-transfer>
+</data-extraction-rules>
