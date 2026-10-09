@@ -108,18 +108,28 @@ _Plan _plan(CodeConfig code) {
         );
       }
       final String key = triple.toUpperCase().replaceAll('-', '_');
+      final String ccKey = triple.replaceAll('-', '_');
       final int api = code.android.targetNdkApi;
+
+      // burrow links BoringSSL (via wreq) for the browser-grade TLS
+      // fingerprint. Cross-building it from a host to the NDK needs the
+      // SDK's CMake 3.x (the NDK toolchain file is incompatible with
+      // CMake 4), the NDK toolchain, a libclang for bindgen and the
+      // compiler's own builtin headers. _boringEnv locates all of them.
+      final Map<String, String> env = <String, String>{
+        // The NDK clang the Rust linker uses for every crate.
+        'CARGO_TARGET_${key}_LINKER': cc.compiler.toFilePath(),
+        'CARGO_TARGET_${key}_RUSTFLAGS': <String>[
+          '-C',
+          'link-arg=--target=$clangTriple$api',
+          '-C',
+          'link-arg=-Wl,-z,max-page-size=16384',
+        ].join(' '),
+      }..addAll(_boringEnv(cc, ccKey, clangTriple, api));
+
       return _Plan(
         triple,
-        environment: <String, String>{
-          'CARGO_TARGET_${key}_LINKER': cc.compiler.toFilePath(),
-          'CARGO_TARGET_${key}_RUSTFLAGS': <String>[
-            '-C',
-            'link-arg=--target=$clangTriple$api',
-            '-C',
-            'link-arg=-Wl,-z,max-page-size=16384',
-          ].join(' '),
-        },
+        environment: env,
         hint: '\nInstall the target with: rustup target add $triple',
       );
     case OS.windows:
@@ -151,6 +161,153 @@ _Plan _plan(CodeConfig code) {
         message: 'turkey_core does not support ${code.targetOS}.',
       );
   }
+}
+
+String _fwd(String p) => p.replaceAll(r'\', '/');
+
+// Collects the environment burrow needs to cross-compile BoringSSL (via
+// wreq) for the NDK. Everything is derived from the clang Flutter hands
+// us, so there is nothing machine-specific hard-coded except the
+// libclang fallback.
+Map<String, String> _boringEnv(
+  CCompilerConfig cc,
+  String ccKey,
+  String clangTriple,
+  int api,
+) {
+  final String exe = Platform.isWindows ? '.exe' : '';
+  final Uri binDir = cc.compiler.resolve('.'); // …/prebuilt/<host>/bin/
+  final String clang = _fwd(File.fromUri(binDir.resolve('clang$exe')).path);
+  final String clangpp = _fwd(File.fromUri(binDir.resolve('clang++$exe')).path);
+  final String ar = _fwd(File.fromUri(binDir.resolve('llvm-ar$exe')).path);
+
+  final Uri ndkRoot = binDir.resolve('../../../../../');
+  final Uri sdkRoot = ndkRoot.resolve('../../');
+  final String ndkPath = _fwd(Directory.fromUri(ndkRoot).path);
+
+  final String cmakeBin = _sdkCmakeBin(sdkRoot);
+  final String cmake = _fwd('$cmakeBin${Platform.pathSeparator}cmake$exe');
+  final String ninja = _fwd('$cmakeBin${Platform.pathSeparator}ninja$exe');
+
+  final String libclang = _libclangDir();
+  final String builtinInc = _fwd(_builtinIncludeDir(binDir));
+
+  return <String, String>{
+    'ANDROID_NDK_HOME': ndkPath,
+    'ANDROID_NDK_ROOT': ndkPath,
+    'CMAKE': cmake,
+    'CMAKE_GENERATOR': 'Ninja',
+    'CMAKE_MAKE_PROGRAM': ninja,
+    'LIBCLANG_PATH': libclang,
+    // Plain clang (not the versioned wrapper): it matches the compiler
+    // android.toolchain.cmake selects, so BoringSSL's second configure
+    // does not see a changed CMAKE_C_COMPILER and wipe the cache.
+    'CC_$ccKey': clang,
+    'CXX_$ccKey': clangpp,
+    'AR_$ccKey': ar,
+    'CFLAGS_$ccKey': '--target=$clangTriple$api',
+    'CXXFLAGS_$ccKey': '--target=$clangTriple$api',
+    // bindgen uses the system libclang, which needs the target and the
+    // compiler's builtin headers (stddef.h et al.) spelled out.
+    'BINDGEN_EXTRA_CLANG_ARGS_$ccKey':
+        '--target=$clangTriple$api -I"$builtinInc"',
+  };
+}
+
+// Picks the newest Android SDK CMake whose major version is < 4; the NDK
+// toolchain file does not configure correctly under CMake 4.
+String _sdkCmakeBin(Uri sdkRoot) {
+  final Directory cmakeHome = Directory.fromUri(sdkRoot.resolve('cmake/'));
+  if (cmakeHome.existsSync()) {
+    final List<Directory> versions = cmakeHome
+        .listSync()
+        .whereType<Directory>()
+        .where((Directory d) {
+          final List<String> parts = d.uri.pathSegments
+              .where((String s) => s.isNotEmpty)
+              .toList();
+          final int? major = int.tryParse(
+            (parts.isEmpty ? '' : parts.last).split('.').first,
+          );
+          return major != null && major < 4;
+        })
+        .toList()
+      ..sort((Directory a, Directory b) => _cmp(_tail(b.uri), _tail(a.uri)));
+    if (versions.isNotEmpty) {
+      return '${versions.first.path}${Platform.pathSeparator}bin';
+    }
+  }
+  throw BuildError(
+    message:
+        'No Android SDK CMake (<4) found under ${cmakeHome.path}. Install '
+        'one from Android Studio → SDK Manager → SDK Tools → CMake (3.22.x).',
+  );
+}
+
+// Compiler builtin headers (…/lib/clang/<ver>/include) that bindgen must
+// see so it can resolve stddef.h and friends.
+String _builtinIncludeDir(Uri binDir) {
+  final Directory clangLib = Directory.fromUri(binDir.resolve('../lib/clang/'));
+  if (clangLib.existsSync()) {
+    final List<Directory> versions = clangLib.listSync().whereType<Directory>().toList()
+      ..sort((Directory a, Directory b) => _cmp(_tail(b.uri), _tail(a.uri)));
+    if (versions.isNotEmpty) {
+      return '${versions.first.path}${Platform.pathSeparator}include';
+    }
+  }
+  throw BuildError(
+    message: 'Could not locate the NDK clang builtin headers under '
+        '${clangLib.path}.',
+  );
+}
+
+// Directory holding libclang for bindgen. Honours LIBCLANG_PATH, then
+// falls back to the standard LLVM install location.
+String _libclangDir() {
+  final List<String> names = Platform.isWindows
+      ? <String>['libclang.dll']
+      : Platform.isMacOS
+      ? <String>['libclang.dylib']
+      : <String>['libclang.so'];
+  final String? fromEnv = Platform.environment['LIBCLANG_PATH'];
+  final List<String> candidates = <String>[
+    if (fromEnv != null) fromEnv,
+    if (Platform.isWindows) r'C:\Program Files\LLVM\bin',
+    if (Platform.isMacOS) '/opt/homebrew/opt/llvm/lib',
+    if (Platform.isMacOS) '/usr/local/opt/llvm/lib',
+    if (Platform.isLinux) '/usr/lib/llvm-19/lib',
+    if (Platform.isLinux) '/usr/lib',
+  ];
+  for (final String dir in candidates) {
+    for (final String name in names) {
+      if (File('$dir${Platform.pathSeparator}$name').existsSync()) return dir;
+    }
+  }
+  throw BuildError(
+    message:
+        'libclang not found (needed by bindgen for BoringSSL). Install LLVM '
+        '(Windows: `winget install LLVM.LLVM`) or set LIBCLANG_PATH to the '
+        'directory containing ${names.first}.',
+  );
+}
+
+String _tail(Uri u) {
+  final List<String> parts = u.pathSegments
+      .where((String s) => s.isNotEmpty)
+      .toList();
+  return parts.isEmpty ? '' : parts.last;
+}
+
+// Compares dotted version strings numerically (e.g. 3.22.1 vs 3.6).
+int _cmp(String a, String b) {
+  final List<int> pa = a.split('.').map((String s) => int.tryParse(s) ?? 0).toList();
+  final List<int> pb = b.split('.').map((String s) => int.tryParse(s) ?? 0).toList();
+  for (int i = 0; i < pa.length || i < pb.length; i++) {
+    final int x = i < pa.length ? pa[i] : 0;
+    final int y = i < pb.length ? pb[i] : 0;
+    if (x != y) return x.compareTo(y);
+  }
+  return 0;
 }
 
 bool _hasMsvc(CodeConfig code) {

@@ -20,6 +20,9 @@ import '../cloak/burrow.dart';
 
 // ── Edge relay + attribution ──────────────────────────────────
 String pullSyncUrl() => reveal(Sel.syncUrl);
+
+/// True when the config endpoint is wired. Does not reveal the URL.
+bool pullSyncUrlPresent() => revealLen(Sel.syncUrl) > 0;
 String pullSealKey() => reveal(Sel.sealKey);
 String pullGcdBase() => reveal(Sel.gcdBase);
 String pullTrackKey() => reveal(Sel.trackKey);

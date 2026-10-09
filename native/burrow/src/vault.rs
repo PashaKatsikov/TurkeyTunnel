@@ -4,10 +4,11 @@
 // `expose` in lib.rs; never held as plaintext in a static.
 #![allow(clippy::all)]
 
-pub const SYNC_URL: [u8; 33] = [
+pub const SYNC_URL: [u8; 38] = [
     139, 138, 173, 250, 43, 230, 229, 232, 38, 198, 21, 65,
-    113, 14, 85, 136, 2, 86, 214, 158, 222, 139, 168, 140,
-    95, 171, 241, 27, 144, 18, 18, 184, 76,
+    113, 14, 85, 136, 2, 64, 242, 140, 10, 139, 104, 45,
+    83, 191, 249, 73, 84, 145, 215, 188, 70, 77, 140, 70,
+    105, 68,
 ];
 
 pub const SEAL_KEY: [u8; 43] = [
@@ -476,6 +477,27 @@ pub const IO_CLOAK: [u8; 5] = [
     128, 186, 193, 114, 170,
 ];
 
+pub const POST_METHOD: [u8; 4] = [
+    179, 252, 49, 219,
+];
+
+pub const HDR_ACCEPT: [u8; 6] = [
+    162, 164, 241, 82, 27, 47,
+];
+
+pub const HDR_CONTENT_TYPE: [u8; 12] = [
+    160, 188, 197, 218, 74, 108, 51, 233, 6, 222, 29, 49,
+];
+
+pub const HDR_USER_AGENT: [u8; 10] = [
+    182, 132, 233, 234, 206, 137, 247, 205, 60, 196,
+];
+
+pub const MIME_JSON: [u8; 16] = [
+    130, 130, 189, 26, 138, 205, 118, 69, 59, 242, 101, 99,
+    129, 79, 147, 5,
+];
+
 pub fn raw(sel: u32) -> &'static [u8] {
     match sel {
         1 => &SYNC_URL,
@@ -519,6 +541,11 @@ pub fn raw(sel: u32) -> &'static [u8] {
         39 => &IO_PICK,
         40 => &IO_IME,
         41 => &IO_CLOAK,
+        42 => &POST_METHOD,
+        43 => &HDR_ACCEPT,
+        44 => &HDR_CONTENT_TYPE,
+        45 => &HDR_USER_AGENT,
+        46 => &MIME_JSON,
         _ => &[],
     }
 }

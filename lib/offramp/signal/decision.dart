@@ -1,20 +1,23 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
-import '../vault/junction_env.dart';
-import 'envelope.dart';
-import 'http_courier.dart';
+import '../cloak/burrow.dart';
+import '../vault/stowed_bytes.dart';
+import 'agent_mark.dart';
 import 'outcome.dart';
 import 'stash.dart';
 
 // ============================================================
-// DECISION — seal the body, POST it, cache the answer
+// DECISION — hand the attribution body to the guard, cache the answer
 // ============================================================
-// The edge relay is the single source of truth for routing. On a
-// granted answer both the URL AND its expiry are cached so a returning
-// launch can skip the network when the URL is still fresh. Any failure
-// — HTTP error, timeout, bad JSON, missing secret — yields a denied
-// ruling; the dispatcher turns that into the game (or dead-air when
-// the network itself is down).
+// The POST itself runs inside the native guard: the endpoint and the
+// header names stay encrypted there and are never Dart literals. The
+// body goes out as compact JSON and the answer comes back as plain
+// JSON (`ok` / `url` / `expires`). On a granted answer both the URL
+// AND its expiry are cached so a returning launch can skip the
+// network when the URL is still fresh. Any failure — HTTP error,
+// timeout, bad JSON — yields a denied ruling; the dispatcher turns
+// that into the game (or dead-air when the network itself is down).
 // ============================================================
 
 class Decision {
@@ -23,29 +26,27 @@ class Decision {
   final Stash _stash;
 
   Future<Ruling> ask(Map<String, dynamic> body) async {
-    final String endpoint = JunctionEnv.syncUrl;
-    if (endpoint.isEmpty) return Ruling.denied('endpoint_missing');
-
-    final Map<String, dynamic>? sealed = Envelope.seal(body);
-    if (sealed == null) return Ruling.denied('secret_missing');
+    if (!pullSyncUrlPresent()) return Ruling.denied('endpoint_missing');
 
     try {
-      final dynamic res = await courier
-          .post(
-            Uri.parse(endpoint),
-            headers: const <String, String>{
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(sealed),
-          )
-          .timeout(Duration(seconds: JunctionEnv.decisionTimeoutSeconds));
+      final Uint8List raw =
+          Uint8List.fromList(utf8.encode(jsonEncode(body)));
+      final ConfigReply reply = await deliverConfig(raw, AgentMark.line);
 
-      if (res.statusCode != 200) {
-        return Ruling.denied('http_${res.statusCode}');
+      assert(() {
+        final String preview = reply.payload.length > 160
+            ? '${reply.payload.substring(0, 160)}…'
+            : reply.payload;
+        // ignore: avoid_print
+        print('[OFFRAMP.DECISION] code=${reply.code} body=$preview');
+        return true;
+      }());
+
+      if (reply.code != 200) {
+        return Ruling.denied('http_${reply.code}');
       }
 
-      final dynamic decoded = jsonDecode(res.body);
+      final dynamic decoded = jsonDecode(reply.payload);
       if (decoded is! Map) return Ruling.denied('malformed');
       final Ruling ruling =
           Ruling.fromWire(Map<String, dynamic>.from(decoded));

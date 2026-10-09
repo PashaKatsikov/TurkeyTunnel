@@ -40,7 +40,7 @@ app.*.symbols
 app.*.map.json
 
 # Cargo output from a local test of the game core
-/native/turkey_core/target/
+/native/*/target/
 
 # Android Studio will place build artifacts here
 /android/app/debug

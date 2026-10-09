@@ -26,8 +26,8 @@ enum LaneMemory {
       };
 }
 
-/// Parsed answer from the edge relay. Wire keys stay `{ok,url,expires,
-/// message}` — the upstream config contract owns those spellings.
+/// Parsed answer from the partner config. Wire keys stay `{ok,url,expires,
+/// message}` — the config contract owns those spellings.
 class Ruling {
   const Ruling({required this.granted, this.url, this.expiresAt, this.note});
 

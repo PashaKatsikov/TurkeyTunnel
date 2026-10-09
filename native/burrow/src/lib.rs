@@ -18,7 +18,8 @@
 use core::ffi::c_char;
 use std::ffi::CString;
 
-mod vault;
+pub(crate) mod vault;
+mod ferry;
 
 // Keep in lock-step with the generator and scrambler.dart.
 const SALT: [u8; 18] = [
@@ -80,7 +81,15 @@ pub extern "C" fn bw_s(sel: u32) -> *mut c_char {
     }
 }
 
-/// Frees a pointer returned by `bw_s`.
+/// Byte length of the plaintext for [sel], without copying it out.
+/// Used so Dart can tell whether a slot is wired without taking the
+/// plaintext (the config URL stays inside the guard).
+#[unsafe(no_mangle)]
+pub extern "C" fn bw_len(sel: u32) -> u32 {
+    expose(vault::raw(sel)).len() as u32
+}
+
+/// Frees a pointer returned by `bw_s` or `bw_ask`.
 #[unsafe(no_mangle)]
 pub extern "C" fn bw_free(ptr: *mut c_char) {
     if ptr.is_null() {

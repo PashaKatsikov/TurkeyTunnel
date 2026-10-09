@@ -53,7 +53,9 @@ abstract final class JunctionEnv {
   static int get nativeRetryGapSeconds => pullNativeRetryGapSeconds();
 
   // ── Resolved (hidden) endpoints & credentials ──────────────
-  static String get syncUrl => pullSyncUrl();
+  /// True when the config endpoint is present in the guard. The URL
+  /// itself is not copied out — the POST decrypts it inside the guard.
+  static bool get syncUrlPresent => pullSyncUrlPresent();
   static String get sealKey => pullSealKey();
   static String get trackKey => pullTrackKey();
   static String get fcmProject => pullFcmProject();
@@ -63,7 +65,7 @@ abstract final class JunctionEnv {
   /// lands in the native game — that is deliberate: the build is QA-
   /// and store-safe with no manager credentials.
   static bool get gateArmed =>
-      syncUrl.isNotEmpty &&
+      syncUrlPresent &&
       sealKey.isNotEmpty &&
       trackKey.isNotEmpty &&
       fcmProject.isNotEmpty;

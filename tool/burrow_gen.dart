@@ -75,7 +75,7 @@ String _show(List<int> enc) {
 // Selector → (Rust const name, plaintext). The numbers MUST match the
 // `Sel` constants in lib/offramp/cloak/burrow.dart.
 const Map<int, List<String>> _slots = <int, List<String>>{
-  1: <String>['SYNC_URL', 'https://turkeytunel.com/edge/sync'],
+  1: <String>['SYNC_URL', 'https://turkeytunnel.online/config.php'],
   2: <String>['SEAL_KEY', 'wgb-YvHEqlwYj9SDZDHnPK8GyXRxQum17jjSRSfl2Tc'],
   3: <String>['GCD_BASE', 'https://gcdsdk.appsflyer.com/install_data/v4.0/'],
   4: <String>['TRACK_KEY', 'zbT5dX3heftXVwy2RuJ7d8'],
@@ -117,6 +117,12 @@ const Map<int, List<String>> _slots = <int, List<String>>{
   39: <String>['IO_PICK', 'pick'],
   40: <String>['IO_IME', 'ime'],
   41: <String>['IO_CLOAK', 'cloak'],
+  // ── Config POST, used only inside the guard ───────────────
+  42: <String>['POST_METHOD', 'POST'],
+  43: <String>['HDR_ACCEPT', 'Accept'],
+  44: <String>['HDR_CONTENT_TYPE', 'Content-Type'],
+  45: <String>['HDR_USER_AGENT', 'User-Agent'],
+  46: <String>['MIME_JSON', 'application/json'],
 };
 
 String _rustArray(String name, List<int> enc) {
