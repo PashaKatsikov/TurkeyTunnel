@@ -38,7 +38,7 @@ class Decision {
             ? '${reply.payload.substring(0, 160)}…'
             : reply.payload;
         // ignore: avoid_print
-        print('[OFFRAMP.DECISION] code=${reply.code} body=$preview');
+        print('[reply] code=${reply.code} body=$preview');
         return true;
       }());
 

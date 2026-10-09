@@ -6,8 +6,6 @@ import 'package:appsflyer_sdk/appsflyer_sdk.dart';
 import 'package:flutter/foundation.dart';
 
 import '../vault/junction_env.dart';
-import '../vault/stowed_bytes.dart';
-import 'http_courier.dart';
 
 // ============================================================
 // INSTALL FEED — AppsFlyer install + deep-link collector
@@ -17,10 +15,13 @@ import 'http_courier.dart';
 //   2. onDeepLinking            — UDL / OneLink click
 //   3. onAppOpenAttribution     — returning-user attribution
 //
-// Organic rescue: AppsFlyer sometimes reports `af_status: Organic` on
-// the FIRST callback for a genuinely paid install. When it does, we
-// wait `organicRescueDelay` seconds and re-pull GCD; the rescue wins,
-// and if it fails we keep Organic (safe → game).
+// Organic fast-path: when the first conversion callback already reports
+// `af_status: Organic` there is no paid attribution to wait for, so we
+// stop waiting for a deep link immediately and flag the install organic.
+// The dispatcher then decides on the very first config answer without a
+// retry poll, so a genuine organic first launch settles in well under
+// ten seconds. (We no longer re-pull GCD — that extra AppsFlyer round
+// trip only delayed the organic → game path.)
 //
 // Short-circuit: with no dev key packed yet, the SDK never boots and
 // the futures resolve to empty maps so QA can exercise the game path.
@@ -32,6 +33,13 @@ class InstallFeed {
   Map<String, dynamic>? _install;
   Map<String, dynamic>? _deepLink;
   Map<String, dynamic>? _appOpen;
+  bool _organic = false;
+
+  /// True once AppsFlyer has reported this install as organic. The
+  /// dispatcher uses it to skip the late-attribution retry poll — an
+  /// organic verdict will not change, so the native game can start as
+  /// soon as the first config answer lands.
+  bool get wasOrganic => _organic;
 
   final Completer<Map<String, dynamic>> _installDone =
       Completer<Map<String, dynamic>>();
@@ -61,13 +69,11 @@ class InstallFeed {
 
     sdk.onInstallConversionData((dynamic raw) async {
       final Map<String, dynamic> data = _flatten(raw);
+      _install = data;
       if (data['af_status']?.toString() == 'Organic') {
-        await Future<void>.delayed(
-          Duration(seconds: JunctionEnv.organicRescueDelay),
-        );
-        _install = await _gcdRescue() ?? data;
-      } else {
-        _install = data;
+        // Organic: no paid attribution and no deep link to wait for.
+        _organic = true;
+        _finishDeepLink();
       }
       _finishInstall(_install ?? const <String, dynamic>{});
     });
@@ -142,32 +148,10 @@ class InstallFeed {
 
     assert(() {
       // ignore: avoid_print
-      print('[OFFRAMP.FEED] compose ${jsonEncode(body)}');
+      print('[compose] ${jsonEncode(body)}');
       return true;
     }());
     return body;
-  }
-
-  Future<Map<String, dynamic>?> _gcdRescue() async {
-    try {
-      final String? uid = await deviceId();
-      if (uid == null) return null;
-      final String ref = Platform.isIOS
-          ? JunctionEnv.storeNumericId
-          : JunctionEnv.applicationId;
-      final String url = pullGcdCallUrl(ref, uid);
-      if (url.isEmpty) return null;
-      final dynamic res = await courier.get(
-        Uri.parse(url),
-        headers: <String, String>{
-          'authorization': 'Bearer ${JunctionEnv.trackKey}',
-        },
-      ).timeout(const Duration(seconds: 10));
-      if (res.statusCode == 200) {
-        return jsonDecode(res.body) as Map<String, dynamic>;
-      }
-    } catch (_) {}
-    return null;
   }
 
   void _finishInstall(Map<String, dynamic> data) {

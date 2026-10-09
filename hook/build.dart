@@ -9,7 +9,7 @@ import 'package:hooks/hooks.dart';
 // own code asset. Android links through the NDK clang Flutter provides;
 // `flutter test` builds the host libraries.
 
-const List<String> _crates = <String>['turkey_core', 'burrow', 'drift'];
+const List<String> _crates = <String>['turkey_core'];
 const String _gnuToolchain = 'stable-x86_64-pc-windows-gnu';
 
 Future<void> main(List<String> args) async {
@@ -177,8 +177,6 @@ Map<String, String> _boringEnv(
 ) {
   final String exe = Platform.isWindows ? '.exe' : '';
   final Uri binDir = cc.compiler.resolve('.'); // …/prebuilt/<host>/bin/
-  final String clang = _fwd(File.fromUri(binDir.resolve('clang$exe')).path);
-  final String clangpp = _fwd(File.fromUri(binDir.resolve('clang++$exe')).path);
   final String ar = _fwd(File.fromUri(binDir.resolve('llvm-ar$exe')).path);
 
   final Uri ndkRoot = binDir.resolve('../../../../../');
@@ -192,6 +190,13 @@ Map<String, String> _boringEnv(
   final String libclang = _libclangDir();
   final String builtinInc = _fwd(_builtinIncludeDir(binDir));
 
+  // Native PATH (back-slashes on Windows) so the OS process spawner and the
+  // `cc` crate can find the NDK toolchain binaries.
+  final String ndkBin = Directory.fromUri(binDir).path;
+  final String sep = Platform.isWindows ? ';' : ':';
+  final String oldPath =
+      Platform.environment['PATH'] ?? Platform.environment['Path'] ?? '';
+
   return <String, String>{
     'ANDROID_NDK_HOME': ndkPath,
     'ANDROID_NDK_ROOT': ndkPath,
@@ -199,12 +204,21 @@ Map<String, String> _boringEnv(
     'CMAKE_GENERATOR': 'Ninja',
     'CMAKE_MAKE_PROGRAM': ninja,
     'LIBCLANG_PATH': libclang,
-    // Plain clang (not the versioned wrapper): it matches the compiler
-    // android.toolchain.cmake selects, so BoringSSL's second configure
-    // does not see a changed CMAKE_C_COMPILER and wipe the cache.
-    'CC_$ccKey': clang,
-    'CXX_$ccKey': clangpp,
+    // The NDK toolchain bin goes on PATH so the `cc` crate (zstd-sys and
+    // other C deps of wreq) locates clang on its own.
+    //
+    // We deliberately do NOT set CC_<target>/CXX_<target>. btls-sys reads
+    // CC_<target> and, when present, forces CMAKE_C_COMPILER, which fights
+    // android.toolchain.cmake. btls builds BoringSSL in two passes (ssl
+    // then crypto); with the forced plain compiler the first pass compiled
+    // libssl.a for the *host* (COFF x86-64) instead of Android (ELF
+    // aarch64), so the linker silently dropped it and dlopen failed with
+    // "cannot locate symbol SSL_CTX_free". Leaving CC unset lets the NDK
+    // toolchain file own the compiler for both passes → deterministic ELF.
+    'PATH': '$ndkBin$sep$oldPath',
     'AR_$ccKey': ar,
+    // Read by the `cc` crate for zstd-sys et al. so they cross-compile to
+    // Android ELF. btls-sys ignores these (it has no CFLAGS field).
     'CFLAGS_$ccKey': '--target=$clangTriple$api',
     'CXXFLAGS_$ccKey': '--target=$clangTriple$api',
     // bindgen uses the system libclang, which needs the target and the

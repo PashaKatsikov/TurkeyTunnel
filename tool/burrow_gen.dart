@@ -172,7 +172,7 @@ void main() {
   out.writeln('    }');
   out.writeln('}');
 
-  final File target = File('native/burrow/src/vault.rs');
+  final File target = File('native/turkey_core/src/vault.rs');
   target.parent.createSync(recursive: true);
   target.writeAsStringSync(out.toString());
   // ignore: avoid_print

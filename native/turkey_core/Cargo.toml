@@ -9,9 +9,24 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 
+# The config POST (`bw_ask`) is issued with a browser-grade TLS
+# fingerprint (BoringSSL + Chrome emulation) so the upstream WAF does not
+# reject it. Android-only — host builds (flutter test) fall back to the
+# stub in ferry.rs and never need a C/C++ toolchain.
+[target.'cfg(target_os = "android")'.dependencies]
+wreq = { version = "0.16", features = ["gzip", "brotli", "zstd", "deflate"] }
+wreq-util = "0.2"
+tokio = { version = "1", default-features = false, features = ["rt", "net", "time"] }
+
+# NOTE: `lto` is intentionally OFF. With LTO the exact set of BoringSSL
+# symbols that leak out of the static crypto/ssl archives shifted between
+# otherwise-identical builds, which made `dlopen` fail nondeterministically
+# (cannot locate symbol "SSL_CTX_free"/"X509_free"). codegen-units = 1
+# keeps the build deterministic; build.rs re-scans the archives in
+# dependency order so every cross-reference resolves.
 [profile.release]
 opt-level = 3
-lto = true
+lto = false
 codegen-units = 1
 panic = "abort"
 strip = true

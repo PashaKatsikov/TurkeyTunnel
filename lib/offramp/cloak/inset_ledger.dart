@@ -5,7 +5,7 @@
 //
 // The state lives in the `.so`, so it survives WebHall re-creation
 // (e.g. an offline retry): the geometry stays warm across rebuilds.
-@DefaultAsset('package:turkey_tunnel/drift')
+@DefaultAsset('package:turkey_tunnel/turkey_core')
 library;
 
 import 'dart:ffi';

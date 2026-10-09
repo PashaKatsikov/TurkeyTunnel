@@ -24,11 +24,6 @@ const String kPushChannelId = 'promo_pulse';
 const String kPushChannelName = 'Bonuses & Promos';
 const String _smallIcon = '@drawable/ic_notification';
 
-@pragma('vm:entry-point')
-Future<void> _onBackground(RemoteMessage message) async {
-  // The OS renders it; the tap is handled on resume/boot.
-}
-
 class PushWatch {
   PushWatch(this._stash);
 
@@ -53,7 +48,6 @@ class PushWatch {
     try {
       if (Firebase.apps.isEmpty) await Firebase.initializeApp();
       _fm = FirebaseMessaging.instance;
-      FirebaseMessaging.onBackgroundMessage(_onBackground);
 
       await _setupLocal();
 

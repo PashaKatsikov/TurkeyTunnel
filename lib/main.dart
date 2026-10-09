@@ -1,5 +1,6 @@
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -34,11 +35,21 @@ import 'wallet.dart';
 //   6. Assemble the off-ramp pipeline, mount the app.
 // ============================================================
 
+// Background message sink. Must be a top-level `vm:entry-point` function:
+// the framework stores its *library* so it can relaunch it in a background
+// isolate, and that library URI survives obfuscation. Keeping it here means
+// the only entry-point URI that leaks is the neutral `main.dart`.
+@pragma('vm:entry-point')
+Future<void> _onPushMessage(RemoteMessage message) async {
+  // The OS renders the notification; the tap is handled on resume/boot.
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
     await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_onPushMessage);
     await FirebaseAppCheck.instance.activate(
       providerAndroid: kDebugMode
           ? const AndroidDebugProvider()

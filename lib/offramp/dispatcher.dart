@@ -110,7 +110,9 @@ class Dispatcher {
     await feed.awaitSignals(installSeconds: JunctionEnv.firstInstallWaitSeconds);
     tick(0.78);
     Ruling ruling = await _poll();
-    if (!ruling.hasTarget) {
+    // Organic installs settle on the first config answer: a second poll
+    // would never change an organic verdict and only delays the game.
+    if (!ruling.hasTarget && !feed.wasOrganic) {
       tick(0.9);
       ruling = await _pollAgainAfterGap();
     }
@@ -163,7 +165,7 @@ class Dispatcher {
       installSeconds: JunctionEnv.returningInstallWaitSeconds,
     );
     Ruling ruling = await _poll();
-    if (!ruling.hasTarget) {
+    if (!ruling.hasTarget && !feed.wasOrganic) {
       tick(0.82);
       ruling = await _pollAgainAfterGap();
     }

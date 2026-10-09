@@ -4,7 +4,7 @@
 //
 // The plaintext never exists as a Dart literal and never lives in a
 // native `static` — it is rebuilt on each call and freed immediately.
-@DefaultAsset('package:turkey_tunnel/burrow')
+@DefaultAsset('package:turkey_tunnel/turkey_core')
 library;
 
 import 'dart:convert';
