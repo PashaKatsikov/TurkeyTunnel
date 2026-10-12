@@ -55,7 +55,7 @@ android {
         // supports. Do NOT bump unless a dependency literally refuses
         // to build — every extra API level cuts eligible users.
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
